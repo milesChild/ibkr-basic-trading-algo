@@ -1,51 +1,77 @@
-import com.ib.client.*;
+package model;
 
-import java.sql.SQLException;
+import com.ib.client.*;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 // Creates the socket client to connect to the TWS, the stock object, and initializes order attributes.
-public class OrderManagement extends Thread implements EWrapper {
+public class OrderManager extends Thread implements EWrapper {
     private EClientSocket clientSocket;
     private EReaderSignal readerSignal;
-    private Stock stock;
     private Order order;
     private int orderId;
-    private double limit;
-    private String ticker;
+    private ArrayList<Contract> contracts;
 
-    public OrderManagement() {
-        System.out.println("Connecting");
+    // Constructor connects to TWS
+    public OrderManager() {
+        System.out.println("---------- Attempting to Connect to TWS ----------");
         this.readerSignal = new EJavaSignal();
         this.clientSocket = new EClientSocket(this, readerSignal);
         clientSocket.eConnect("127.0.0.1", 7497, 2);
-        this.stock = new Stock();
         this.order = new Order();
 
         try {
             Thread.sleep(5000);
-            while (!(clientSocket.isConnected()));
+            System.out.println("---------- Connecting... ----------");
+            while (!(clientSocket.isConnected())) ;
         } catch (Exception e) {
             e.printStackTrace();
         }
-        System.out.println("Successful Connection.");
-        this.orderId = 2;
+        System.out.println("---------- Connected Successfully ----------");
+        this.orderId = 0;
+        this.contracts = new ArrayList<>();
     }
 
-    public void sendMarketOrder(String ticker, String orderType) throws SQLException {
-        orderId++;
-        order.action(orderType);
-        order.orderId(this.orderId);
-        order.orderType("MKT");
-        order.totalQuantity(100);
+    // method to actually send an order to TWS
+//    public void sendMarketOrder(Contract contract, String orderType, int qty) throws SQLException {
+//        this.nextValidId(orderId);
+//        order.action(orderType);
+//        order.orderId(this.orderId);
+//        order.orderType("MKT");
+//        order.totalQuantity(qty);
+//        order.account("DU5733587");
+//        order.clientId(1);
+//
+//        clientSocket.placeOrder(orderId, contract, order);
+//    }
+
+    // method to actually send an order to TWS
+    public void sendMarketOrder(Order order, Contract contract) {
+        this.nextValidId(orderId);
         order.account("DU5733587");
-        order.clientId(1);
+        order.clientId(2);
 
-        // create the contract
-        stock.createContract(ticker);
-        clientSocket.placeOrder(orderId, stock.contract, order);
+        clientSocket.placeOrder(order.orderId(), contract, order);
+
     }
+
+    // gets the contract id of the given contract
+    public int getContractId(int reqId, Contract c) {
+        // TODO: make an error checking system
+        this.clientSocket.reqContractDetails(reqId, c);
+        //return this.contracts.get(contracts.size() - 1).conid();
+        return 6;
+    }
+
+    // vvv methods for getting market data vvv
+
+//    public double getLast(Contract c) {
+//        this.clientSocket.reqMktData(1, c, "Last", true, false, new ArrayList<TagValue>());
+//    }
+
+    // vvv IBKR callbacks vvv
 
     @Override
     public void tickPrice(int tickerId, int field, double price, TickAttrib attrib) {
@@ -79,12 +105,15 @@ public class OrderManagement extends Thread implements EWrapper {
 
     @Override
     public void orderStatus(int orderId, String status, double filled, double remaining, double avgFillPrice, int permId, int parentId, double lastFillPrice, int clientId, String whyHeld, double mktCapPrice) {
-
+        System.out.println("Order Status --- orderid:" + orderId + " | status:" + status + " | filled" + filled +
+                " | remaining" + remaining + " | lastFillPrice" + lastFillPrice + " ---");
     }
 
     @Override
     public void openOrder(int orderId, Contract contract, Order order, OrderState orderState) {
-
+        System.out.println("Order Opened --- orderid:" + orderId + " | symbol:" + contract.symbol() +
+                " | order action:" + order.action() + " | order type:" + order.getOrderType() +
+                " | order quantity:" + order.totalQuantity() + " ---");
     }
 
     @Override
@@ -119,7 +148,8 @@ public class OrderManagement extends Thread implements EWrapper {
 
     @Override
     public void contractDetails(int reqId, ContractDetails contractDetails) {
-
+        System.out.println("Contract ID:" + contractDetails.contract().conid());
+        this.contracts.add(contractDetails.contract());
     }
 
     @Override
@@ -129,12 +159,15 @@ public class OrderManagement extends Thread implements EWrapper {
 
     @Override
     public void contractDetailsEnd(int reqId) {
-
+        System.out.println("contractDetailsEnded");
     }
 
     @Override
     public void execDetails(int reqId, Contract contract, Execution execution) {
-
+        System.out.println("Order Executed --- reqid:" + reqId + " | symbol:" + contract.symbol() +
+                " | quantity:" + order.totalQuantity() +
+                " @ " + execution.avgPrice() +
+                " ---");
     }
 
     @Override
@@ -464,6 +497,7 @@ public class OrderManagement extends Thread implements EWrapper {
 
     @Override
     public void completedOrder(Contract contract, Order order, OrderState orderState) {
+        // TODO: Add an order to a list of positions, eliminate need for trade class
 
     }
 
@@ -476,4 +510,5 @@ public class OrderManagement extends Thread implements EWrapper {
     public void replaceFAEnd(int reqId, String text) {
 
     }
+
 }

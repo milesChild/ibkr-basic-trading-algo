@@ -1,3 +1,5 @@
+package model;
+
 import com.ib.client.Contract;
 
 public class Stock {
